@@ -8,6 +8,12 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DEPLOYMENT_ENV: production
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,6 +21,8 @@ jobs:
       NODE_ENV: production
       NEXT_PUBLIC_GITHUB_SHA: ${{ github.sha }}
       NEXT_PUBLIC_GITHUB_REF: ${{ github.ref }}
+      NEXT_PUBLIC_VERSION: ${{ github.event.ref }}
+      NEXT_PUBLIC_DEPLOY_TIME: ${{ github.event.created_at }}
 
     steps:
       - uses: actions/checkout@v3
@@ -32,18 +40,32 @@ jobs:
         id: cache-dependencies
         uses: actions/cache@v3
         with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          path: |
+            node_modules
+            .next/cache
+            .next/dist
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/next.config.js') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Install dependencies
         if: steps.cache-dependencies.outputs.cache-hit != 'true'
-        run: npm ci
+        run: |
+          npm ci
+          npm run build:check
+
+      - name: Security Scan
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+        run: |
+          npm install -g npm-audit-ci
+          npm audit-ci
 
       - name: Build with version
         run: |
           echo "Building version: ${{ github.sha }}"
+          echo "Environment: ${{ env.DEPLOYMENT_ENV }}"
           npm run build
 
       - name: Validate build
@@ -52,6 +74,28 @@ jobs:
             echo "Build output directory not found"
             exit 1
           fi
+          
+          # Check for critical files
+          if [ ! -f "out/index.html" ]; then
+            echo "Missing index.html in build output"
+            exit 1
+          fi
+
+      - name: Optimize Assets
+        run: |
+          npm install -g imagemin-cli
+          imagemin out/**/*.jpg out/**/*.png --out-dir out/ --plugin=mozjpeg --plugin=pngquant
+          
+          # Add service worker for PWA support
+          cp public/service-worker.js out/
+          cp public/manifest.json out/
+
+      - name: Add Security Headers
+        run: |
+          echo "Adding security headers..."
+          mkdir -p out/.well-known
+          echo "Strict-Transport-Security: max-age=31536000; includeSubDomains" > out/.well-known/security-headers.txt
+          echo "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'" >> out/.well-known/security-headers.txt
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
@@ -65,10 +109,39 @@ jobs:
           domain: dial-a-service.com
           verbose: true
           custom_domain: true
+          commit_message: "Deploy ${{ github.sha }} to GitHub Pages"
+          clean_urls: true
+          after_commit: |
+            echo "Deployment completed successfully"
+            echo "Git SHA: ${{ github.sha }}"
+            echo "Deployment Time: ${{ github.event.created_at }}"
+            echo "Environment: ${{ env.DEPLOYMENT_ENV }}"
 
       - name: Post-deployment validation
         run: |
-          echo "Deployment complete"
-          echo "Git SHA: ${{ github.sha }}"
-          echo "GitHub Ref: ${{ github.ref }}"
-          echo "Published to: https://walu22.github.io/dial-a-service-mvp/"
+          echo "Running post-deployment checks..."
+          curl -I https://walu22.github.io/dial-a-service-mvp/
+          curl -I https://dial-a-service.com
+          
+          # Check for security headers
+          SECURITY_HEADERS=$(curl -I https://dial-a-service.com | grep -i "Strict-Transport-Security")
+          if [ -z "$SECURITY_HEADERS" ]; then
+            echo "Security headers not properly set"
+            exit 1
+          fi
+
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          author_name: "GitHub Actions"
+          author_link: "https://github.com/walu22/dial-a-service-mvp"
+          title: "Deployment Status"
+          title_link: "https://github.com/walu22/dial-a-service-mvp/actions"
+          text: "${{ job.status }}: Deployment of ${{ github.sha }} to GitHub Pages"
+          fields: |
+            {"title": "Environment", "value": "${{ env.DEPLOYMENT_ENV }}", "short": true}
+            {"title": "Version", "value": "${{ github.event.ref }}", "short": true}
+            {"title": "Deployment Time", "value": "${{ github.event.created_at }}", "short": true}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
