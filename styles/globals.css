@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: 59, 130, 246;
+    --primary-light: 100, 163, 255;
+    --primary-dark: 14, 116, 234;
+    --primary-hover: 37, 99, 235;
+    --background: 249, 250, 252;
+    --surface: 255, 255, 255;
+    --text-primary: 31, 41, 55;
+    --text-secondary: 75, 85, 99;
+    --border: 229, 231, 235;
+    --shadow: 0, 0, 0, 0.05;
+  }
+
+  body {
+    @apply bg-[rgb(var(--background))] text-[rgb(var(--text-primary))] antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  }
+
+  .btn.primary {
+    @apply bg-primary text-white hover:bg-primary-hover active:bg-primary-dark shadow-sm hover:shadow-primary-lg;
+  }
+
+  .btn.neutral {
+    @apply bg-surface border border-border text-text-primary hover:bg-background active:bg-text-secondary shadow-sm;
+  }
+
+  .card {
+    @apply bg-surface rounded-lg shadow-sm border border-border p-6;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  }
+
+  .select {
+    @apply w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  }
+
+  .textarea {
+    @apply w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  }
+
+  .badge {
+    @apply px-2 py-1 rounded-full text-xs font-medium;
+  }
+
+  .badge.primary {
+    @apply bg-primary text-white;
+  }
+
+  .badge.success {
+    @apply bg-green-500 text-white;
+  }
+
+  .badge.warning {
+    @apply bg-yellow-500 text-gray-900;
+  }
+
+  .badge.error {
+    @apply bg-red-500 text-white;
+  }
+
+  .badge.info {
+    @apply bg-blue-500 text-white;
+  }
+}
+
+@layer utilities {
+  .text-primary {
+    @apply text-[rgb(var(--text-primary))];
+  }
+
+  .text-secondary {
+    @apply text-[rgb(var(--text-secondary))];
+  }
+
+  .bg-primary {
+    @apply bg-[rgb(var(--primary))];
+  }
+
+  .border-primary {
+    @apply border-[rgb(var(--primary))];
+  }
+
+  .hover:bg-primary {
+    @apply hover:bg-[rgb(var(--primary))];
+  }
+
+  .shadow-primary {
+    @apply shadow-[rgb(var(--shadow))];
+  }
+}

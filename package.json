@@ -1,0 +1,30 @@
+{
+  "name": "dial-a-service-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@sendgrid/mail": "^8.1.5",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/auth-helpers-react": "^0.5.0",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.39.5",
+    "date-fns": "^4.1.0",
+    "next": "14.2.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.10",
+    "typescript": "5.4.5"
+  }
+}
