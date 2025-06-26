@@ -77,10 +77,11 @@ jobs:
           npm run test:e2e
           npm run test:perf
 
-      - name: Install Performance Tools
+      - name: Install Testing Tools
         run: |
           npm install -g lighthouse webpagetest
           npm install -D speed-measure-webpack-plugin
+          npm install --save-dev axe-core axe-cli keyboard-tester color-contrast-checker
 
       - name: Run WebPageTest
         run: |

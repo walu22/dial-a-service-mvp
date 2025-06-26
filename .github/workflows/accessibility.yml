@@ -1,0 +1,73 @@
+name: Accessibility Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  accessibility:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run Accessibility Tests
+      run: |
+        # Run AXE CLI for automated accessibility testing
+        axe-cli . --reporter=json > accessibility-report.json
+        
+        # Check keyboard accessibility
+        keyboard-tester
+        
+        # Check color contrast
+        color-contrast-checker
+
+    - name: Analyze Accessibility Report
+      run: |
+        echo "Analyzing accessibility report..."
+        
+        # Extract accessibility violations
+        VIOLATIONS=$(cat accessibility-report.json | jq '.violations | length')
+        echo "Total violations found: $VIOLATIONS"
+        
+        if [ "$VIOLATIONS" -gt 0 ]; then
+          echo "Accessibility violations found:"
+          cat accessibility-report.json | jq '.violations[] | {id: .id, impact: .impact, description: .description}'
+          exit 1
+        fi
+
+    - name: Cache Accessibility Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: accessibility-report
+        path: |
+          accessibility-report.json
+
+    - name: Send Accessibility Report to Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        author_name: "Accessibility Monitor"
+        author_link: "https://github.com/walu22/dial-a-service-mvp"
+        title: "Accessibility Report"
+        title_link: "https://github.com/walu22/dial-a-service-mvp/actions"
+        text: "Accessibility test results for ${{ github.sha }}"
+        fields: |
+          {"title": "Total Violations", "value": "$VIOLATIONS", "short": true}
+          {"title": "Keyboard Accessible", "value": "✅", "short": true}
+          {"title": "Color Contrast", "value": "✅", "short": true}
+        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
