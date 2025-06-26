@@ -89,6 +89,12 @@ jobs:
             exit 1
           fi
 
+      - name: Cache Performance Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: lighthouse.json
+
       - name: Build with version
         run: |
           echo "Building version: ${{ github.sha }}"

@@ -37,7 +37,6 @@
     "cypress": "^13.5.1",
     "jest": "^29.7.0",
     "lighthouse": "^11.2.0",
-    "lighthouse-cli": "^1.0.0",
     "next-images": "^1.8.4",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.10",
