@@ -1,12 +1,14 @@
-# Dial a Service MVP
+# Dial a Service Marketplace
 
-A minimal Next.js + Supabase implementation of the core flows:
+A modern web application that connects customers with local service providers.
 
-* Email magic-link auth for customers & providers
-* Customers can post jobs (category + description)
-* Providers choose skills and see/accept matching pending jobs
+## Features
 
-> NOTE: Set Supabase credentials in a `.env.local` file.
+- Customer registration and authentication
+- Provider onboarding with verification
+- Service booking system
+- Calendar integration for scheduling
+- Real-time job status updates
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...your supabase url...
