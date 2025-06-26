@@ -77,10 +77,31 @@ jobs:
           npm run test:e2e
           npm run test:perf
 
-      - name: Analyze Performance
+      - name: Install Performance Tools
         run: |
-          npm install -g lighthouse
-          lighthouse https://walu22.github.io/dial-a-service-mvp/ --output=json --quiet > lighthouse.json
+          npm install -g lighthouse webpagetest
+          npm install -D speed-measure-webpack-plugin
+
+      - name: Run WebPageTest
+        run: |
+          echo "Running WebPageTest..."
+          webpagetest run https://walu22.github.io/dial-a-service-mvp/ --firstViewOnly --csv > webpagetest.csv
+          
+          # Parse WebPageTest results
+          FIRST_LOAD=$(cat webpagetest.csv | grep -i "First Byte" | awk -F',' '{print $2}')
+          if [ "$FIRST_LOAD" -gt 2000 ]; then
+            echo "First byte time too high: $FIRST_LOAD ms"
+            exit 1
+          fi
+
+      - name: Run Lighthouse
+        run: |
+          echo "Running Lighthouse performance audit..."
+          lighthouse https://walu22.github.io/dial-a-service-mvp/ \
+            --output=json \
+            --quiet \
+            --chrome-flags="--headless" \
+            --emulated-form-factor=desktop > lighthouse.json
           
           # Extract performance metrics
           PERFORMANCE_SCORE=$(cat lighthouse.json | jq -r '.categories.performance.score * 100')
@@ -89,11 +110,67 @@ jobs:
             exit 1
           fi
 
-      - name: Cache Performance Report
+          # Extract specific metrics
+          FIRST_CONTENTFUL_PAINT=$(cat lighthouse.json | jq -r '.audits.first-contentful-paint.numericValue')
+          if [ "$FIRST_CONTENTFUL_PAINT" -gt 2500 ]; then
+            echo "First Contentful Paint too high: $FIRST_CONTENTFUL_PAINT ms"
+            exit 1
+          fi
+
+          SPEED_INDEX=$(cat lighthouse.json | jq -r '.audits.speed-index.numericValue')
+          if [ "$SPEED_INDEX" -gt 4000 ]; then
+            echo "Speed Index too high: $SPEED_INDEX ms"
+            exit 1
+          fi
+
+          TOTAL_BLOCKING_TIME=$(cat lighthouse.json | jq -r '.audits.total-blocking-time.numericValue')
+          if [ "$TOTAL_BLOCKING_TIME" -gt 1000 ]; then
+            echo "Total Blocking Time too high: $TOTAL_BLOCKING_TIME ms"
+            exit 1
+          fi
+
+      - name: Generate Performance Report
+        run: |
+          echo "Generating comprehensive performance report..."
+          echo "Performance Report" > performance-report.txt
+          echo "=================" >> performance-report.txt
+          echo "" >> performance-report.txt
+          echo "Lighthouse Scores:" >> performance-report.txt
+          echo "-----------------" >> performance-report.txt
+          echo "Performance Score: $PERFORMANCE_SCORE%" >> performance-report.txt
+          echo "First Contentful Paint: $FIRST_CONTENTFUL_PAINT ms" >> performance-report.txt
+          echo "Speed Index: $SPEED_INDEX ms" >> performance-report.txt
+          echo "Total Blocking Time: $TOTAL_BLOCKING_TIME ms" >> performance-report.txt
+          echo "" >> performance-report.txt
+          echo "WebPageTest Results:" >> performance-report.txt
+          echo "-------------------" >> performance-report.txt
+          echo "First Byte Time: $FIRST_LOAD ms" >> performance-report.txt
+
+      - name: Cache Performance Reports
         uses: actions/upload-artifact@v3
         with:
-          name: performance-report
-          path: lighthouse.json
+          name: performance-reports
+          path: |
+            lighthouse.json
+            webpagetest.csv
+            performance-report.txt
+
+      - name: Send Performance Report to Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          author_name: "Performance Monitor"
+          author_link: "https://github.com/walu22/dial-a-service-mvp"
+          title: "Performance Report"
+          title_link: "https://github.com/walu22/dial-a-service-mvp/actions"
+          text: "Performance metrics for deployment ${{ github.sha }}"
+          fields: |
+            {"title": "Performance Score", "value": "$PERFORMANCE_SCORE%", "short": true}
+            {"title": "First Contentful Paint", "value": "$FIRST_CONTENTFUL_PAINT ms", "short": true}
+            {"title": "Speed Index", "value": "$SPEED_INDEX ms", "short": true}
+            {"title": "Total Blocking Time", "value": "$TOTAL_BLOCKING_TIME ms", "short": true}
+            {"title": "First Byte Time", "value": "$FIRST_LOAD ms", "short": true}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       - name: Build with version
         run: |
