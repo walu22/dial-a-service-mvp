@@ -104,47 +104,156 @@ jobs:
             --emulated-form-factor=desktop > lighthouse.json
           
           # Extract performance metrics
+          # Extract and validate performance metrics
           PERFORMANCE_SCORE=$(cat lighthouse.json | jq -r '.categories.performance.score * 100')
-          if [ "$PERFORMANCE_SCORE" -lt 85 ]; then
+          if [ "$PERFORMANCE_SCORE" -lt 90 ]; then
             echo "Performance score is below threshold: $PERFORMANCE_SCORE"
             exit 1
           fi
 
-          # Extract specific metrics
+          # Core Web Vitals
           FIRST_CONTENTFUL_PAINT=$(cat lighthouse.json | jq -r '.audits.first-contentful-paint.numericValue')
-          if [ "$FIRST_CONTENTFUL_PAINT" -gt 2500 ]; then
-            echo "First Contentful Paint too high: $FIRST_CONTENTFUL_PAINT ms"
+          if [ "$FIRST_CONTENTFUL_PAINT" -gt 1800 ]; then
+            echo "First Contentful Paint too high: $FIRST_CONTENTFUL_PAINT ms (Good: <1800ms, Poor: >3000ms)"
+            exit 1
+          fi
+
+          LARGEST_CONTENTFUL_PAINT=$(cat lighthouse.json | jq -r '.audits.largest-contentful-paint.numericValue')
+          if [ "$LARGEST_CONTENTFUL_PAINT" -gt 2800 ]; then
+            echo "Largest Contentful Paint too high: $LARGEST_CONTENTFUL_PAINT ms (Good: <2.5s, Poor: >4s)"
             exit 1
           fi
 
           SPEED_INDEX=$(cat lighthouse.json | jq -r '.audits.speed-index.numericValue')
-          if [ "$SPEED_INDEX" -gt 4000 ]; then
-            echo "Speed Index too high: $SPEED_INDEX ms"
+          if [ "$SPEED_INDEX" -gt 3400 ]; then
+            echo "Speed Index too high: $SPEED_INDEX ms (Good: <3.4s, Poor: >5.3s)"
             exit 1
           fi
 
           TOTAL_BLOCKING_TIME=$(cat lighthouse.json | jq -r '.audits.total-blocking-time.numericValue')
-          if [ "$TOTAL_BLOCKING_TIME" -gt 1000 ]; then
-            echo "Total Blocking Time too high: $TOTAL_BLOCKING_TIME ms"
+          if [ "$TOTAL_BLOCKING_TIME" -gt 300 ]; then
+            echo "Total Blocking Time too high: $TOTAL_BLOCKING_TIME ms (Good: <300ms, Poor: >600ms)"
             exit 1
           fi
 
-      - name: Generate Performance Report
+          CUMULATIVE_LAYOUT_SHIFT=$(cat lighthouse.json | jq -r '.audits.cumulative-layout-shift.numericValue')
+          if (( $(echo "$CUMULATIVE_LAYOUT_SHIFT > 0.1" | bc -l) )); then
+            echo "Cumulative Layout Shift too high: $CUMULATIVE_LAYOUT_SHIFT (Good: <0.1, Poor: >0.25)"
+            exit 1
+          fi
+
+          # Additional performance metrics
+          TIME_TO_INTERACTIVE=$(cat lighthouse.json | jq -r '.audits.interactive.numericValue')
+          if [ "$TIME_TO_INTERACTIVE" -gt 3800 ]; then
+            echo "Time to Interactive too high: $TIME_TO_INTERACTIVE ms (Good: <3.8s, Poor: >7.3s)"
+            exit 1
+          fi
+
+          NEXT_PAINT=$(cat lighthouse.json | jq -r '.audits.next-paint.numericValue')
+          if [ "$NEXT_PAINT" -gt 1500 ]; then
+            echo "Next Paint too high: $NEXT_PAINT ms (Good: <1.5s)"
+            exit 1
+          fi
+
+          # Resource optimization
+          TOTAL_BYTE_WEIGHT=$(cat lighthouse.json | jq -r '.audits.total-byte-weight.numericValue')
+          if [ "$TOTAL_BYTE_WEIGHT" -gt 4000000 ]; then
+            echo "Total Byte Weight too high: $TOTAL_BYTE_WEIGHT bytes (4MB)"
+            exit 1
+          fi
+
+          # Accessibility
+          ACCESSIBILITY_SCORE=$(cat lighthouse.json | jq -r '.categories.accessibility.score * 100')
+          if [ "$ACCESSIBILITY_SCORE" -lt 90 ]; then
+            echo "Accessibility score is below threshold: $ACCESSIBILITY_SCORE"
+            exit 1
+          fi
+
+          # Best Practices
+          BEST_PRACTICES_SCORE=$(cat lighthouse.json | jq -r '.categories.best-practices.score * 100')
+          if [ "$BEST_PRACTICES_SCORE" -lt 95 ]; then
+            echo "Best Practices score is below threshold: $BEST_PRACTICES_SCORE"
+            exit 1
+          fi
+
+          # SEO
+          SEO_SCORE=$(cat lighthouse.json | jq -r '.categories.seo.score * 100')
+          if [ "$SEO_SCORE" -lt 90 ]; then
+            echo "SEO score is below threshold: $SEO_SCORE"
+            exit 1
+          fi
+
+      - name: Generate Detailed Performance Report
         run: |
           echo "Generating comprehensive performance report..."
-          echo "Performance Report" > performance-report.txt
-          echo "=================" >> performance-report.txt
+          echo "Performance Report for Deployment: ${{ github.sha }}" > performance-report.txt
+          echo "================================================" >> performance-report.txt
           echo "" >> performance-report.txt
-          echo "Lighthouse Scores:" >> performance-report.txt
-          echo "-----------------" >> performance-report.txt
-          echo "Performance Score: $PERFORMANCE_SCORE%" >> performance-report.txt
-          echo "First Contentful Paint: $FIRST_CONTENTFUL_PAINT ms" >> performance-report.txt
-          echo "Speed Index: $SPEED_INDEX ms" >> performance-report.txt
-          echo "Total Blocking Time: $TOTAL_BLOCKING_TIME ms" >> performance-report.txt
+          echo "Performance Scores:" >> performance-report.txt
+          echo "------------------" >> performance-report.txt
+          echo "Performance Score: $PERFORMANCE_SCORE% (Target: ≥90%)" >> performance-report.txt
+          echo "Accessibility Score: $ACCESSIBILITY_SCORE% (Target: ≥90%)" >> performance-report.txt
+          echo "Best Practices Score: $BEST_PRACTICES_SCORE% (Target: ≥95%)" >> performance-report.txt
+          echo "SEO Score: $SEO_SCORE% (Target: ≥90%)" >> performance-report.txt
           echo "" >> performance-report.txt
-          echo "WebPageTest Results:" >> performance-report.txt
+          
+          echo "Core Web Vitals (Good/Poor thresholds)" >> performance-report.txt
+          echo "--------------------------------------" >> performance-report.txt
+          echo "First Contentful Paint: $FIRST_CONTENTFUL_PAINT ms (<1800ms/3000ms)" >> performance-report.txt
+          echo "Largest Contentful Paint: $LARGEST_CONTENTFUL_PAINT ms (<2.5s/4s)" >> performance-report.txt
+          echo "Speed Index: $SPEED_INDEX ms (<3.4s/5.3s)" >> performance-report.txt
+          echo "Total Blocking Time: $TOTAL_BLOCKING_TIME ms (<300ms/600ms)" >> performance-report.txt
+          echo "Cumulative Layout Shift: $CUMULATIVE_LAYOUT_SHIFT (<0.1/0.25)" >> performance-report.txt
+          echo "" >> performance-report.txt
+          
+          echo "Additional Performance Metrics" >> performance-report.txt
+          echo "------------------------------" >> performance-report.txt
+          echo "Time to Interactive: $TIME_TO_INTERACTIVE ms (<3.8s/7.3s)" >> performance-report.txt
+          echo "Next Paint: $NEXT_PAINT ms (<1.5s)" >> performance-report.txt
+          echo "Total Byte Weight: $TOTAL_BYTE_WEIGHT bytes (4MB max)" >> performance-report.txt
+          echo "" >> performance-report.txt
+          
+          echo "WebPageTest Results" >> performance-report.txt
           echo "-------------------" >> performance-report.txt
-          echo "First Byte Time: $FIRST_LOAD ms" >> performance-report.txt
+          echo "First Byte Time: $FIRST_LOAD ms (<2000ms)" >> performance-report.txt
+          echo "" >> performance-report.txt
+          
+          echo "Performance Status:" >> performance-report.txt
+          echo "------------------" >> performance-report.txt
+          if [ "$PERFORMANCE_SCORE" -lt 90 ]; then
+            echo "❌ Performance Score below threshold" >> performance-report.txt
+          fi
+          if [ "$ACCESSIBILITY_SCORE" -lt 90 ]; then
+            echo "❌ Accessibility Score below threshold" >> performance-report.txt
+          fi
+          if [ "$BEST_PRACTICES_SCORE" -lt 95 ]; then
+            echo "❌ Best Practices Score below threshold" >> performance-report.txt
+          fi
+          if [ "$SEO_SCORE" -lt 90 ]; then
+            echo "❌ SEO Score below threshold" >> performance-report.txt
+          fi
+          echo "" >> performance-report.txt
+          
+          echo "Core Web Vitals Status:" >> performance-report.txt
+          echo "----------------------" >> performance-report.txt
+          if [ "$FIRST_CONTENTFUL_PAINT" -gt 1800 ]; then
+            echo "❌ First Contentful Paint too high" >> performance-report.txt
+          fi
+          if [ "$LARGEST_CONTENTFUL_PAINT" -gt 2800 ]; then
+            echo "❌ Largest Contentful Paint too high" >> performance-report.txt
+          fi
+          if [ "$SPEED_INDEX" -gt 3400 ]; then
+            echo "❌ Speed Index too high" >> performance-report.txt
+          fi
+          if [ "$TOTAL_BLOCKING_TIME" -gt 300 ]; then
+            echo "❌ Total Blocking Time too high" >> performance-report.txt
+          fi
+          if (( $(echo "$CUMULATIVE_LAYOUT_SHIFT > 0.1" | bc -l) )); then
+            echo "❌ Cumulative Layout Shift too high" >> performance-report.txt
+          fi
+          echo "" >> performance-report.txt
+          
+          echo "Generated at: $(date)" >> performance-report.txt
 
       - name: Cache Performance Reports
         uses: actions/upload-artifact@v3
