@@ -3,24 +3,72 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      NEXT_PUBLIC_GITHUB_SHA: ${{ github.sha }}
+      NEXT_PUBLIC_GITHUB_REF: ${{ github.ref }}
+
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+        with:
+          fetch-depth: 0  # For git history
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
-      - run: npm ci
-      - run: npm run build
+      - name: Cache dependencies
+        id: cache-dependencies
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build with version
+        run: |
+          echo "Building version: ${{ github.sha }}"
+          npm run build
+
+      - name: Validate build
+        run: |
+          if [ ! -d "out" ]; then
+            echo "Build output directory not found"
+            exit 1
+          fi
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./out
+          force_orphan: true
+          keep_history: true
+          clean: true
+          cname: dial-a-service.com
+          domain: dial-a-service.com
+          verbose: true
+          custom_domain: true
+
+      - name: Post-deployment validation
+        run: |
+          echo "Deployment complete"
+          echo "Git SHA: ${{ github.sha }}"
+          echo "GitHub Ref: ${{ github.ref }}"
+          echo "Published to: https://walu22.github.io/dial-a-service-mvp/"
