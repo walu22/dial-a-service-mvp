@@ -7,12 +7,18 @@ on:
       - 'v*'
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
 
 env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   DEPLOYMENT_ENV: production
+  DEPLOYMENT_BRANCH: main
+  DEPLOYMENT_TAG: v${{ github.event.ref }}
+  DEPLOYMENT_COMMIT: ${{ github.sha }}
+  DEPLOYMENT_TIME: ${{ github.event.created_at }}
 
 jobs:
   build:
@@ -23,6 +29,9 @@ jobs:
       NEXT_PUBLIC_GITHUB_REF: ${{ github.ref }}
       NEXT_PUBLIC_VERSION: ${{ github.event.ref }}
       NEXT_PUBLIC_DEPLOY_TIME: ${{ github.event.created_at }}
+      NEXT_PUBLIC_BUILD_NUMBER: ${{ github.run_number }}
+      NEXT_PUBLIC_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+      NEXT_PUBLIC_COMMIT_AUTHOR: ${{ github.event.head_commit.author.name }}
 
     steps:
       - uses: actions/checkout@v3
@@ -62,11 +71,40 @@ jobs:
           npm install -g npm-audit-ci
           npm audit-ci
 
+      - name: Run Tests
+        run: |
+          npm run test
+          npm run test:e2e
+          npm run test:perf
+
+      - name: Analyze Performance
+        run: |
+          npm install -g lighthouse
+          lighthouse https://walu22.github.io/dial-a-service-mvp/ --output=json --quiet > lighthouse.json
+          
+          # Extract performance metrics
+          PERFORMANCE_SCORE=$(cat lighthouse.json | jq -r '.categories.performance.score * 100')
+          if [ "$PERFORMANCE_SCORE" -lt 85 ]; then
+            echo "Performance score is below threshold: $PERFORMANCE_SCORE"
+            exit 1
+          fi
+
       - name: Build with version
         run: |
           echo "Building version: ${{ github.sha }}"
           echo "Environment: ${{ env.DEPLOYMENT_ENV }}"
           npm run build
+          
+          # Generate build report
+          echo "Build Report:"
+          echo "============="
+          echo "Version: ${{ github.event.ref }}"
+          echo "Build Number: ${{ github.run_number }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Author: ${{ github.event.head_commit.author.name }}"
+          echo "Message: ${{ github.event.head_commit.message }}"
+          echo "Build Time: ${{ github.event.created_at }}"
+          echo "Performance Score: $PERFORMANCE_SCORE"
 
       - name: Validate build
         run: |
@@ -115,7 +153,42 @@ jobs:
             echo "Deployment completed successfully"
             echo "Git SHA: ${{ github.sha }}"
             echo "Deployment Time: ${{ github.event.created_at }}"
-            echo "Environment: ${{ env.DEPLOYMENT_ENV }}"
+            echo "Environment: ${{ env.DEPLOYMENT_ENV }}
+
+      - name: Backup Previous Version
+        if: always()
+        run: |
+          echo "Creating backup of current deployment..."
+          mkdir -p backup
+          cp -r out/ backup/previous-version
+          tar -czf backup/previous-version.tar.gz backup/previous-version
+          
+      - name: Rollback to Previous Version
+        if: ${{ failure() }}
+        run: |
+          echo "Deployment failed, rolling back to previous version..."
+          if [ -f "backup/previous-version.tar.gz" ]; then
+            tar -xzf backup/previous-version.tar.gz
+            mv backup/previous-version/* out/
+            echo "Rollback successful"
+          else
+            echo "No previous version found for rollback"
+          fi
+
+      - name: Send Rollback Notification
+        if: ${{ failure() }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failed
+          author_name: "GitHub Actions"
+          author_link: "https://github.com/walu22/dial-a-service-mvp"
+          title: "Deployment Failed - Rolled Back"
+          title_link: "https://github.com/walu22/dial-a-service-mvp/actions"
+          text: "Automatic rollback to previous version completed"
+          fields: |
+            {"title": "Failed Version", "value": "${{ github.sha }}", "short": true}
+            {"title": "Rollback Time", "value": "${{ github.event.created_at }}", "short": true}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}"
 
       - name: Post-deployment validation
         run: |
