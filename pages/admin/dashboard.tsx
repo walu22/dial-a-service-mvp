@@ -9,6 +9,7 @@ interface Provider {
   business_name: string;
   years_experience: number;
   skills: string[];
+  verified: boolean; // Added the verified field
   verification_status: string;
   verification_requested_at: string | null;
   rejection_reason: string | null;

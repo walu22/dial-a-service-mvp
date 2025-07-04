@@ -80,10 +80,11 @@ BEGIN
 
   -- Update provider status
   UPDATE providers
-  SET 
+  SET
+    verified = (status = 'approved'), -- Set boolean verified flag
     verification_status = status,
-    verification_approved_at = CASE WHEN status = 'approved' THEN NOW() ELSE NULL END,
-    verification_rejected_at = CASE WHEN status = 'rejected' THEN NOW() ELSE NULL END,
+    verification_approved_at = CASE WHEN status = 'approved' THEN NOW() ELSE verification_approved_at END, -- Preserve approval time if already approved
+    verification_rejected_at = CASE WHEN status = 'rejected' THEN NOW() ELSE verification_rejected_at END, -- Preserve rejection time if already rejected
     rejection_reason = reason
   WHERE id = provider_id;
 END;
